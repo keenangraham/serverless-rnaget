@@ -113,7 +113,8 @@ def add_custom_domain_alias_to_api(context):
             aws_route53_targets.ApiGateway(
                 context.gateway
             )
-        )
+        ),
+        record_name=f'rnaget.{context.existing_resources.encode_api_domain.domain_name}',
     )
 
 
