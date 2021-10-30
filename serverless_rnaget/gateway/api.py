@@ -2,6 +2,8 @@ from aws_cdk import aws_apigateway
 from aws_cdk import aws_lambda
 from aws_cdk.aws_lambda_python import PythonFunction
 from aws_cdk import core as cdk
+from aws_cdk import aws_route53
+from aws_cdk import aws_route53_targets
 
 from aws_solutions_constructs import aws_apigateway_lambda
 
@@ -44,8 +46,8 @@ def make_lambda_in_vpc(context, name, entry='serverless_rnaget/lambdas/', index=
         index=index,
         handler=name,
         runtime=aws_lambda.Runtime.PYTHON_3_8,
-        vpc=context.internal_network.vpc,
-        security_group=context.internal_network.security_group,
+        vpc=context.existing_resources.internal_network.vpc,
+        security_group=context.existing_resources.internal_network.security_group,
         allow_public_subnet=True,
     )
 
@@ -75,7 +77,11 @@ def make_api_gateway_to_lambda(context, name, lambda_):
         api_gateway_props=aws_apigateway.RestApiProps(
             default_method_options=aws_apigateway.MethodOptions(
                 authorization_type=aws_apigateway.AuthorizationType.NONE,
-            )
+            ),
+            domain_name=aws_apigateway.DomainNameOptions(
+                certificate=context.existing_resources.encode_api_domain.domain_certificate,
+                domain_name=f'rnaget.{context.existing_resources.encode_api_domain.domain_name}',
+            ),
         )
     )
 
@@ -98,12 +104,25 @@ def add_resources_and_handlers(context, resources, root, action='GET'):
     return root
 
 
+def add_custom_domain_alias_to_api(context):
+    return aws_route53.ARecord(
+        context,
+        'CustomDomainToApi',
+        zone=context.existing_resources.encode_api_domain.hosted_zone,
+        target=aws_route53.RecordTarget.from_alias(
+            aws_route53_targets.ApiGateway(
+                context.gateway
+            )
+        ),
+        record_name=f'rnaget.{context.existing_resources.encode_api_domain.domain_name}',
+    )
+
+
 class API(cdk.Stack):
 
-    def __init__(self, scope, construct_id, internal_network, elasticsearch, **kwargs):
+    def __init__(self, scope, construct_id, existing_resources, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
-        self.internal_network = internal_network
-        self.elasticsearch = elasticsearch
+        self.existing_resources = existing_resources
         self.default_lambda = make_lambda(
             self,
             'default',
@@ -119,3 +138,4 @@ class API(cdk.Stack):
             RESOURCES,
             self.gateway.root
         )
+        self.alias_record = add_custom_domain_alias_to_api(self)

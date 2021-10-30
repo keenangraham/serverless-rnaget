@@ -24,8 +24,7 @@ existing_resources = ExistingResources(
 rnaget_api = RNAGetAPI(
     app,
     'RNAGetAPIStack',
-    internal_network=existing_resources.internal_network,
-    elasticsearch=existing_resources.elasticsearch,
+    existing_resources=existing_resources,
     env=ENVIRONMENT,
 )
 
